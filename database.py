@@ -7,7 +7,7 @@ class Database:
         self.stvoriti_tablici()
 
     def stvoriti_tablici(self):
-        # Створюємо таблицю. Зверни увагу: після останньої колонки 'status' немає коми!
+        
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,

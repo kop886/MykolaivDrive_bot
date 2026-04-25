@@ -1,46 +1,40 @@
 import asyncio
-# імпорти aiogram
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
-# імпорти для станів
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, KeyboardButton
-# Імпорт для ШІ
 from ai_assistant import get_ai_answer
 
-# Імпортуємо твій клас з файлу database.py
 from database import Database 
 
-# Вставляємо токен прямо в код (так простіше для курсової)
 TOKEN = "8788551055:AAEhrz6t6nIFldK7Jj2e4q_ywlaleWhZuu4"
 
-# Створюємо об'єкти бота та бази даних
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 db = Database("my_service.db")
 
-# Клас для станів форми запису (Машина станів - FSM)
 class ZapisForm(StatesGroup):
-    pib = State()        # Стан очікування ПІБ
-    phone = State()      # Стан очікування телефону
-    car = State()        # Стан очікування авто
-    issue = State()      # Стан очікування опису проблеми
-    confirm = State()    # Стан підтвердження
-    ai_question = State() # Новий стан для питання до ШІ
+    pib = State()        
+    phone = State()      
+    car = State()        
+    issue = State()      
+    confirm = State()    
+    ai_question = State() 
 
-# Функція для створення кнопок (головне меню)
+
 def golovne_menu():
     builder = ReplyKeyboardBuilder()
     builder.button(text="🤖 Консультація")
     builder.button(text="📝 Записатися")
-    builder.button(text="🔍 Перевірити запис") # Кнопка перевірки
+    builder.button(text="🔍 Перевірити запис") 
     builder.button(text="📍 Адреса")
-    builder.adjust(2) # Кнопки по 2 в ряд
+    builder.adjust(2) 
     return builder.as_markup(resize_keyboard=True)
 
-# Функція для кнопок після Адреси
+
 def menu_zapisy():
     builder = ReplyKeyboardBuilder()
     builder.button(text="✅ Так, записатися")
@@ -48,7 +42,7 @@ def menu_zapisy():
     builder.adjust(1) 
     return builder.as_markup(resize_keyboard=True)
 
-# Кнопка для телефону з можливістю повернутися назад
+
 def phone_menu():
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text="📱 Надіслати номер", request_contact=True))
@@ -56,24 +50,21 @@ def phone_menu():
     builder.adjust(1)
     return builder.as_markup(resize_keyboard=True)
 
-# --- ОБРОБНИКИ КОМАНД ---
+
 
 @dp.message(CommandStart())
 async def welcome(message: types.Message):
-    # Додаємо ID користувача в базу (початкова реєстрація)
-    db.dodati_id(message.from_user.id)
     
+    db.dodati_id(message.from_user.id)    
     await message.answer(
         f"Привіт, {message.from_user.first_name}! 🔧\nЯ твій помічник MykolaivDrive.",
         reply_markup=golovne_menu()
     )
 
-#Консультація  з АІ
-# 1. Початок консультації
+
 @dp.message(F.text == "🤖 Консультація")
 async def start_ai_consult(message: types.Message, state: FSMContext):
     await state.set_state(ZapisForm.ai_question)
-    # Додаємо ReplyKeyboardRemove(), щоб кнопки зникли
     await message.answer(
         "🔧 Я — ваш віртуальний майстер MykolaivDrive.\n"
         "Опишіть вашу проблему одним повідомленням (наприклад: 'свистить ремінь' або 'погано гріє пічка'). Після відповіді ви повернетесь до меню:",
@@ -83,23 +74,18 @@ async def start_ai_consult(message: types.Message, state: FSMContext):
 # 2. Обробка питання та ПОВЕРНЕННЯ меню
 @dp.message(ZapisForm.ai_question)
 async def process_ai_question(message: types.Message, state: FSMContext):
-    # Якщо юзер випадково натиснув "назад" або іншу команду (якщо кнопки лишились)
     if message.text == "⬅️ Повернутися до меню":
         await state.clear()
         return await message.answer("Повертаємось...", reply_markup=golovne_menu())
 
     waiting_msg = await message.answer("🔍 Аналізую проблему... Зачекайте хвилинку.")
     
-    # Викликаємо ШІ
     answer = await get_ai_answer(message.text)
     
-    # Редагуємо повідомлення на відповідь ШІ
     await waiting_msg.edit_text(answer)
     
-    # Очищаємо стан
     await state.clear()
     
-    # ВАЖЛИВО: Самі висилаємо головне меню після відповіді
     await message.answer("Чим я можу допомогти ще?", reply_markup=golovne_menu())
 
 
@@ -121,7 +107,6 @@ async def send_address(message: types.Message):
 async def back_to_main(message: types.Message):
     await message.answer("Ви повернулися в головне меню", reply_markup=golovne_menu())
 
-# ---  ПЕРЕВІРКИ ЗАПИСУ ---
 @dp.message(F.text == "🔍 Перевірити запис")
 async def check_my_booking(message: types.Message):
     booking = db.pereviriti_zapis(message.from_user.id)
@@ -133,7 +118,6 @@ async def check_my_booking(message: types.Message):
             f"🚗 Авто: {booking[1]}\n"
             f"🛠 Проблема: {booking[2]}"
         )
-        # Створюємо кнопки: тільки "Так, буду" та "Видалити"
         builder = ReplyKeyboardBuilder()
         builder.button(text="✅ Так, я буду")
         builder.button(text="❌ Видалити запис")
@@ -148,18 +132,14 @@ async def check_my_booking(message: types.Message):
         await message.answer("Записів поки ще немає. Бажаєте записатися?", 
                              reply_markup=builder.as_markup(resize_keyboard=True))
 
-# Обробка кнопки "Так, я буду" (Повернення в меню зі збереженням запису)
 @dp.message(F.text == "✅ Так, я буду")
 async def confirm_presence(message: types.Message):
     await message.answer("Дякуємо, що вибрали нас, чекатимемо! 🔧", reply_markup=golovne_menu())
 
-# Обробка кнопки "Видалити запис"
 @dp.message(F.text == "❌ Видалити запис")
 async def delete_booking_handler(message: types.Message):
-    # Викликаємо метод з database.py
     db.vidaliti_zapis(message.from_user.id)
     
-    # Створюємо кнопки для вибору подальшої дії
     builder = ReplyKeyboardBuilder()
     builder.button(text="✅ Так, новий запис")
     builder.button(text="🏠 Ні, в меню")
@@ -168,14 +148,11 @@ async def delete_booking_handler(message: types.Message):
     await message.answer("Ваш запис було успішно видалено. Бажаєте здійснити новий запис?", 
                          reply_markup=builder.as_markup(resize_keyboard=True))
 
-# Обробка вибору після видалення
 @dp.message(F.text == "🏠 Ні, в меню")
 async def back_after_del(message: types.Message):
     await message.answer("Головне меню:", reply_markup=golovne_menu())
 
-# --- ЛОГІКА ЗАПИСУ (FSM) ---
 
-# Додаємо сюди і кнопку "Так, новий запис", щоб вона теж запускала анкету
 @dp.message(F.text.in_({"📝 Записатися", "✅ Так, записатися", "✅ Так, новий запис"}))
 async def start_zapis(message: types.Message, state: FSMContext):
     await state.set_state(ZapisForm.pib)
@@ -242,7 +219,6 @@ async def process_issue(message: types.Message, state: FSMContext):
 async def confirm_booking(message: types.Message, state: FSMContext):
     if message.text == "✅ Все вірно, записати":
         user_data = await state.get_data()
-        # ЗБЕРЕЖЕННЯ В БД ПОВНОГО ЗАПИСУ
         db.onoviti_zapis(
             message.from_user.id, 
             user_data['pib'], 
@@ -259,23 +235,13 @@ async def confirm_booking(message: types.Message, state: FSMContext):
         await state.clear()
         await message.answer("Запис скасовано.", reply_markup=golovne_menu())
 
-# --- Отримання відповіді від АІ ---
 @dp.message(ZapisForm.ai_question)
 async def process_ai_question(message: types.Message, state: FSMContext):
-    # 1. Повідомляємо, що ми працюємо (щоб юзер не думав, що бот завис)
-    waiting_msg = await message.answer("🔍 Аналізую проблему... Зачекайте хвилинку.")
-    
-    # 2. Викликаємо наш ШІ з файлу ai_assistant.py
-    answer = await get_ai_answer(message.text)
-    
-    # 3. Редагуємо повідомлення, вставляючи туди відповідь ШІ
-    await waiting_msg.edit_text(answer)
-    
-    # 4. Очищаємо стан, щоб юзер міг знову користуватися головним меню
+    waiting_msg = await message.answer("🔍 Аналізую проблему... Зачекайте хвилинку.")  
+    answer = await get_ai_answer(message.text) 
+    await waiting_msg.edit_text(answer) 
     await state.clear()
-
-# --- ЗАПУСК ---
-
+    
 async def start_program():
     await bot.delete_webhook(drop_pending_updates=True)
     print("Бот запущений")
